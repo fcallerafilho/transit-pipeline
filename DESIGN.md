@@ -309,7 +309,7 @@ Walking skeleton principle: wire everything end to end before making any of it g
 - **Cadence ~45 s** (see §4.5) — drove the §4.5 / §5.2 / §4.6 / §4.3 revisions from the original 30 s assumption.
 - **Auth:** `POST /Login/Autenticar?token=…` returns the text `true` and sets cookie `apiCredentials`; the session survived ≥151 s of continuous use. The ingester re-authenticates **reactively** on an auth failure, not on a fixed timer (true ceiling unprobed).
 - **Rate limits:** none observed at ~1 req/5 s (no 429s, no `Retry-After`). True ceiling undocumented but far above our cadence.
-- **Null fields:** `p`, `a`, `ta`, `py`, `px` were all present and non-null across **7,141 vehicles** — zero exceptions in the sample.
+- **Null fields:** `p`, `a`, `ta`, `py`, `px` were all present and non-null across **7,141 vehicles** — zero exceptions in the sample. The docs' field *types* are not authoritative, though: `p` (prefix) arrives as a JSON **string**, not the integer the docs claim, and the vehicle object also carries `sv`/`is` fields that came back null. The Go structs are typed against the live payload.
 - **Empty / unknown line:** a line with no vehicles *and* a nonexistent line code both return `HTTP 200` with `{"hr":…,"vs":[]}` — never a 404. Confirms the §5.1 rationale for `positions_ingested_total`: transport-layer success ≠ semantic success.
 - **In-service volume (midday):** ~7,141 vehicles across 1,914 lines; busiest single line ~28 vehicles, most trunks ~13–18. (Note: the ~15k in §4.6 is *total mapped* fleet; peak in-service is higher than midday — worth a rush-hour re-run before relying on the full-fleet arithmetic.)
 

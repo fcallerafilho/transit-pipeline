@@ -37,7 +37,7 @@ const (
 // exported, and encoding/json can only populate exported fields. Unmapped upstream
 // fields (the API also sends `is` and `sv`) are simply ignored by the decoder.
 type vehicle struct {
-	Prefix     int     `json:"p"`  // vehicle prefix (fleet id)
+	Prefix     string  `json:"p"`  // vehicle prefix (fleet id); the API sends this as a JSON string, despite the docs calling it an integer
 	Accessible bool    `json:"a"`  // wheelchair accessible
 	Timestamp  string  `json:"ta"` // capture time, RFC3339 UTC, e.g. 2026-08-22T15:36:29Z
 	Lat        float64 `json:"py"` // latitude
@@ -170,11 +170,11 @@ func writeOne(ctx context.Context, dbURL string, lineCode int, v vehicle) error 
 	const insert = `INSERT INTO positions (vehicle_id, line_id, ts, lat, lon)
 	                VALUES ($1, $2, $3, $4, $5)`
 	if _, err := conn.Exec(ctx, insert,
-		fmt.Sprintf("%d", v.Prefix), lineCode, ts, v.Lat, v.Lon); err != nil {
+		v.Prefix, lineCode, ts, v.Lat, v.Lon); err != nil {
 		return fmt.Errorf("insert row: %w", err)
 	}
 
-	log.Printf("wrote 1 row: vehicle_id=%d line_id=%d ts=%s lat=%.5f lon=%.5f",
+	log.Printf("wrote 1 row: vehicle_id=%s line_id=%d ts=%s lat=%.5f lon=%.5f",
 		v.Prefix, lineCode, ts.Format(time.RFC3339), v.Lat, v.Lon)
 	return nil
 }
