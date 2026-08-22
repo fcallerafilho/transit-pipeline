@@ -1,0 +1,352 @@
+<style>
+  :root {
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --surface-2: #f3f5f9;
+    --ink: #1a2230;
+    --muted: #5c6b80;
+    --line: #d4dae4;
+    --accent: #0f7d72;
+    --accent-soft: #d8ece9;
+    --finding: #9c6614;
+    --finding-soft: #f5e9d2;
+    --alert: #b34a30;
+    --alert-soft: #f4ddd5;
+    --shadow: 0 1px 2px rgba(20,30,45,.06), 0 6px 20px rgba(20,30,45,.05);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1319;
+      --surface: #161d27;
+      --surface-2: #1e2732;
+      --ink: #e7ecf3;
+      --muted: #93a1b5;
+      --line: #2a3543;
+      --accent: #3bb0a3;
+      --accent-soft: #123834;
+      --finding: #e0a94a;
+      --finding-soft: #3a2f18;
+      --alert: #e08163;
+      --alert-soft: #3a251d;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f6; --surface: #ffffff; --surface-2: #f3f5f9; --ink: #1a2230;
+    --muted: #5c6b80; --line: #d4dae4; --accent: #0f7d72; --accent-soft: #d8ece9;
+    --finding: #9c6614; --finding-soft: #f5e9d2; --alert: #b34a30; --alert-soft: #f4ddd5;
+    --shadow: 0 1px 2px rgba(20,30,45,.06), 0 6px 20px rgba(20,30,45,.05);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1319; --surface: #161d27; --surface-2: #1e2732; --ink: #e7ecf3;
+    --muted: #93a1b5; --line: #2a3543; --accent: #3bb0a3; --accent-soft: #123834;
+    --finding: #e0a94a; --finding-soft: #3a2f18; --alert: #e08163; --alert-soft: #3a251d;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 24px 72px; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); font-weight: 600;
+  }
+  h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.12; margin: 10px 0 12px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { color: var(--muted); font-size: 16px; max-width: 66ch; margin: 0; }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 10px; margin-top: 20px;
+    padding: 8px 14px; border-radius: 999px; background: var(--accent-soft);
+    color: var(--accent); font-family: var(--mono); font-size: 13px; font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+  section { margin-top: 44px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+  .sec-head h2 { font-size: 15px; margin: 0; letter-spacing: .04em; text-transform: uppercase; font-family: var(--mono); }
+  .sec-head .rule { flex: 1; height: 1px; background: var(--line); }
+
+  /* ---------- pipeline flow ---------- */
+  .flow { display: flex; align-items: stretch; gap: 14px; flex-wrap: wrap; }
+  .node {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 16px 14px; box-shadow: var(--shadow); flex: 1 1 240px; min-width: 240px;
+    position: relative;
+  }
+  .node .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .node .title { font-weight: 700; font-size: 16px; margin: 3px 0 2px; }
+  .node .sub { color: var(--muted); font-size: 12.5px; font-family: var(--mono); }
+  .node ul { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .node li { font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+  .node li code { font-family: var(--mono); }
+  .tick { color: var(--accent); font-weight: 700; flex: none; }
+
+  .kv { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line);
+        border-radius: 7px; padding: 8px 10px; margin-top: 10px; overflow-x: auto; }
+  .kv .k { color: var(--accent); }
+  .kv .n { color: var(--muted); }
+
+  .arrow { flex: 0 0 74px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
+  .arrow .glyph { font-size: 22px; color: var(--accent); line-height: 1; }
+  .arrow .lbl { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .02em; }
+
+  .docker {
+    flex: 3 1 560px; min-width: 280px; border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, var(--line));
+    border-radius: 14px; padding: 30px 16px 16px; position: relative; display: flex; gap: 14px;
+    align-items: stretch; flex-wrap: wrap; background: color-mix(in srgb, var(--accent-soft) 30%, transparent);
+  }
+  .docker .frame-tag {
+    position: absolute; top: -11px; left: 16px; background: var(--bg); padding: 0 10px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--accent); font-weight: 600;
+  }
+  .docker .node { background: var(--surface); }
+
+  .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 6px;
+    background: var(--finding); color: #fff; font-family: var(--mono); font-size: 11px; font-weight: 700;
+    vertical-align: middle; margin-left: 6px;
+  }
+
+  .envchip {
+    display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11.5px;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; color: var(--muted);
+  }
+  .envrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* ---------- lineage table ---------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13.5px; }
+  thead th {
+    text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, th.mono { font-family: var(--mono); }
+  .type { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .to { color: var(--accent); font-family: var(--mono); }
+  .drop { color: var(--muted); font-style: italic; }
+  .flag { color: var(--alert); font-weight: 600; }
+
+  /* ---------- findings ---------- */
+  .findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .finding {
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--finding);
+    border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .finding h3 { margin: 0 0 5px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .finding .num {
+    flex: none; width: 20px; height: 20px; border-radius: 6px; background: var(--finding-soft); color: var(--finding);
+    font-family: var(--mono); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .finding p { margin: 0; font-size: 13px; color: var(--muted); }
+  .finding p code, .finding p b { font-family: var(--mono); color: var(--ink); font-weight: 600; font-size: 12.5px; }
+  .finding.is-alert { border-left-color: var(--alert); }
+  .finding.is-alert .num { background: var(--alert-soft); color: var(--alert); }
+
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-family: var(--mono); }
+  footer b { color: var(--ink); }
+
+  @media (max-width: 720px) {
+    .arrow { flex-basis: 100%; flex-direction: row; gap: 10px; padding: 2px 0; }
+    .arrow .glyph { transform: rotate(90deg); }
+    .docker { flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .node, .finding, .tablewrap, .status { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
+    .node:nth-child(2) { animation-delay: .04s; }
+    section:nth-of-type(2) .finding:nth-child(2) { animation-delay: .04s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">transit-pipeline · step 0 + 1a</div>
+    <h1>How one bus position becomes one row</h1>
+    <p class="lede">The verified data path from the SPTrans Olho&nbsp;Vivo API through the Go ingester into a TimescaleDB hypertable, running under docker-compose on the laptop — annotated with what the step-0 spike actually measured (São Paulo, 2026-08-22 midday).</p>
+    <div class="status"><span class="dot"></span>Verified: 1 real row written — vehicle 31978, line 402, ts 15:47:34Z</div>
+  </header>
+
+  <!-- PIPELINE -->
+  <section>
+    <div class="sec-head"><h2>The path</h2><span class="rule"></span></div>
+    <div class="flow">
+
+      <div class="node">
+        <div class="kicker">Upstream · not ours</div>
+        <div class="title">SPTrans Olho Vivo API</div>
+        <div class="sub">api.olhovivo.sptrans.com.br/v2.1</div>
+        <ul>
+          <li><span class="tick">1.</span><span><code>POST /Login/Autenticar?token=•••</code> → body <code>true</code> + cookie <code>apiCredentials</code><span class="badge">2</span></span></li>
+          <li><span class="tick">2.</span><span><code>GET /Posicao/Linha?codigoLinha=402</code><span class="badge">1</span><span class="badge">5</span></span></li>
+        </ul>
+        <div class="kv"><span class="n">// response</span><br>{ <span class="k">"hr"</span>:"12:20", <span class="k">"vs"</span>:[ {p,a,ta,py,px,sv,is}, … ] }</div>
+      </div>
+
+      <div class="arrow">
+        <div class="glyph">→</div>
+        <div class="lbl">auth<br>+ poll</div>
+      </div>
+
+      <div class="docker">
+        <span class="frame-tag">docker-compose · laptop</span>
+
+        <div class="node">
+          <div class="kicker">Service · ingester</div>
+          <div class="title">Go ingester</div>
+          <div class="sub">build ./ingester → distroless</div>
+          <ul>
+            <li><span class="tick">·</span><span><code>net/http</code> + <code>cookiejar</code> holds the session</span></li>
+            <li><span class="tick">·</span><span>decode JSON → structs (unknown fields ignored)<span class="badge is-alert" style="background:var(--alert)">4</span></span></li>
+            <li><span class="tick">·</span><span><code>pgx</code> → one <code>INSERT</code></span></li>
+            <li><span class="tick">·</span><span><code>restart:&nbsp;no</code> — one-shot, then exits 0</span></li>
+          </ul>
+          <div class="envrow">
+            <span class="envchip">🔑 SPTRANS_TOKEN</span>
+            <span class="envchip">🔗 DATABASE_URL</span>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="glyph">→</div>
+          <div class="lbl">INSERT<br>1 row</div>
+        </div>
+
+        <div class="node">
+          <div class="kicker">Service · db</div>
+          <div class="title">TimescaleDB</div>
+          <div class="sub">timescale/timescaledb:2.29.2-pg17</div>
+          <ul>
+            <li><span class="tick">·</span><span>table <code>positions</code> as a hypertable <code>by_range(ts)</code></span></li>
+            <li><span class="tick">·</span><span><code>init.sql</code> runs once on first init</span></li>
+            <li><span class="tick">·</span><span>volume <code>db_data</code> · port <code>5432</code></span></li>
+          </ul>
+          <div class="kv"><span class="n">positions (</span><br>&nbsp;&nbsp;vehicle_id <span class="k">text</span>, line_id <span class="k">integer</span>,<br>&nbsp;&nbsp;ts <span class="k">timestamptz</span>,<br>&nbsp;&nbsp;lat <span class="k">double precision</span>, lon <span class="k">double precision</span><br><span class="n">)</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LINEAGE -->
+  <section>
+    <div class="sec-head"><h2>Data lineage — field by field</h2><span class="rule"></span></div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="mono">API field</th>
+            <th class="mono">JSON type</th>
+            <th class="mono">Go struct field</th>
+            <th class="mono">Go type</th>
+            <th class="mono">→ DB column</th>
+            <th class="mono">SQL type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">p</td>
+            <td class="type flag">string ⚠</td>
+            <td class="mono">Prefix</td>
+            <td class="type">string</td>
+            <td class="mono to">vehicle_id</td>
+            <td class="type">text</td>
+          </tr>
+          <tr>
+            <td class="mono">codigoLinha</td>
+            <td class="type">request param</td>
+            <td class="mono">hardcodedLineCode</td>
+            <td class="type">int (402)</td>
+            <td class="mono to">line_id</td>
+            <td class="type">integer</td>
+          </tr>
+          <tr>
+            <td class="mono">ta</td>
+            <td class="type">string (RFC3339)</td>
+            <td class="mono">Timestamp</td>
+            <td class="type">string → time.Time</td>
+            <td class="mono to">ts</td>
+            <td class="type">timestamptz</td>
+          </tr>
+          <tr>
+            <td class="mono">py</td>
+            <td class="type">number</td>
+            <td class="mono">Lat</td>
+            <td class="type">float64</td>
+            <td class="mono to">lat</td>
+            <td class="type">double precision</td>
+          </tr>
+          <tr>
+            <td class="mono">px</td>
+            <td class="type">number</td>
+            <td class="mono">Lon</td>
+            <td class="type">float64</td>
+            <td class="mono to">lon</td>
+            <td class="type">double precision</td>
+          </tr>
+          <tr>
+            <td class="mono">a</td>
+            <td class="type">bool</td>
+            <td class="mono">Accessible</td>
+            <td class="type">bool</td>
+            <td class="drop">not stored in v0</td>
+            <td class="drop">—</td>
+          </tr>
+          <tr>
+            <td class="mono">sv, is</td>
+            <td class="type">null</td>
+            <td class="drop">unmapped</td>
+            <td class="drop">—</td>
+            <td class="drop">ignored</td>
+            <td class="drop">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FINDINGS -->
+  <section>
+    <div class="sec-head"><h2>What step 0 measured</h2><span class="rule"></span></div>
+    <div class="findings">
+      <div class="finding">
+        <h3><span class="num">1</span>Update cadence ≈ 45 s</h3>
+        <p>Per-vehicle <code>ta</code> advances on a firm ~45 s ceiling (median&nbsp;44, p90&nbsp;45, max&nbsp;45) — <b>not the 30 s</b> DESIGN assumed. Drove the poll interval to 45 s and the freshness SLO to <b>p99 &lt; 120 s</b>.</p>
+      </div>
+      <div class="finding">
+        <h3><span class="num">2</span>Session ≥ 151 s</h3>
+        <p>The <code>apiCredentials</code> cookie carried every call for the whole run with no re-auth. True ceiling unprobed — the ingester re-authenticates <b>reactively</b> on failure, not on a timer.</p>
+      </div>
+      <div class="finding">
+        <h3><span class="num">3</span>No rate limiting seen</h3>
+        <p>~1 request / 5 s for 150 s returned all <code>200</code>s — no <code>429</code>, no <code>Retry-After</code>. Undocumented ceiling, but far above our cadence.</p>
+      </div>
+      <div class="finding is-alert">
+        <h3><span class="num">4</span>Docs lie about types</h3>
+        <p><code>p</code> arrives as a JSON <b>string</b> (<code>"31971"</code>), not the integer the docs claim — it broke the first decode. <code>sv</code>/<code>is</code> come back null. Structs are typed against the live payload.</p>
+      </div>
+      <div class="finding">
+        <h3><span class="num">5</span>Empty line = 200 + []</h3>
+        <p>An idle line — and even an unknown line code — returns <code>HTTP 200</code> with <code>vs:[]</code>, never a 404. <b>Transport success ≠ semantic success</b>: the exact case the future <code>positions_ingested_total</code> metric exists to catch.</p>
+      </div>
+      <div class="finding">
+        <h3><span class="num">6</span>Midday volume</h3>
+        <p><b>7,141</b> vehicles across <b>1,914</b> lines in service; busiest single line just 28. All of <code>p,a,ta,py,px</code> non-null across the whole sample.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <b>Scope:</b> DESIGN.md §9.4 steps 0–1a only. One hardcoded line, one poll, one row — no ticker, channels, metrics, or k8s yet (those are 1b onward). &nbsp;·&nbsp; <b>Badges</b> on the path (<span style="color:var(--finding)">▢</span>) point to the finding observed at that stage.
+  </footer>
+</div>
