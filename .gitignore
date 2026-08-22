@@ -1,0 +1,15 @@
+# Secrets — never commit (DESIGN §4.8/§12)
+.env
+
+# Step-0 spike (throwaway, per DESIGN §4.2/§9.4)
+spike.py
+spike_survey_log.csv
+.venv-spike/
+
+# Go build output
+/ingester/ingester
+/ingester/ingester.exe
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

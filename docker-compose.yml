@@ -1,0 +1,33 @@
+# docker-compose.yml — step 1a local skeleton (DESIGN §9.4 1a).
+# Two containers: TimescaleDB, and a one-shot Go ingester that authenticates, polls
+# one line, writes one row, and exits.
+services:
+  db:
+    image: timescale/timescaledb:2.29.2-pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-transit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_local}
+      POSTGRES_DB: ${POSTGRES_DB:-transit}
+    ports:
+      - "5432:5432"                    # exposed to localhost so you can psql in and inspect
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-transit} -d ${POSTGRES_DB:-transit}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  ingester:
+    build: ./ingester
+    depends_on:
+      db:
+        condition: service_healthy     # wait until the DB passes its healthcheck before starting
+    environment:
+      SPTRANS_TOKEN: ${SPTRANS_TOKEN:?set SPTRANS_TOKEN in .env}
+      DATABASE_URL: postgres://${POSTGRES_USER:-transit}:${POSTGRES_PASSWORD:-transit_local}@db:5432/${POSTGRES_DB:-transit}?sslmode=disable
+    restart: "no"                      # one-shot: poll once, write one row, exit (step 2 makes it a long-running ticker)
+
+volumes:
+  db_data:
