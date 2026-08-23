@@ -288,10 +288,10 @@ Steps 0–7 below. Excluded and deferred to v1: compression and retention polici
 v0 is done when all five artifacts exist. If one is missing, it is not done.
 
 1. **A live map at a public URL.** Three corridors, positions refreshing. Deliberately plain.
-2. **A Grafana dashboard**, screenshot-able: current freshness, freshness p99 over the window against the 90-second target, ingest rate, upstream latency percentiles, parse failures by reason, remaining error budget as a percentage.
+2. **A Grafana dashboard**, screenshot-able: current freshness, freshness p99 over the window against the 120-second target, ingest rate, upstream latency percentiles, parse failures by reason, remaining error budget as a percentage.
 3. **An alert that has actually fired** — not a rule that exists, but one that triggered, notified, and was acted on. Evidence retained.
 4. **A repo** containing: Go ingester, Kubernetes manifests, k3s bootstrap script, one Terraform module for the chosen host, `README.md`, `DESIGN.md`, `RUNBOOK.md`, `POSTMORTEM-001.md`.
-5. **One measured number:** *"Ran continuously for N days. Measured p99 freshness of X seconds against a 90-second target, consuming Y% of the monthly error budget."*
+5. **One measured number:** *"Ran continuously for N days. Measured p99 freshness of X seconds against a 120-second target, consuming Y% of the monthly error budget."*
 
 ### 9.3 The calendar constraint
 
