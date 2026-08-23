@@ -9,6 +9,8 @@ spike_survey_log.csv
 # Go build output
 /ingester/ingester
 /ingester/ingester.exe
+/readapi/readapi
+/readapi/readapi.exe
 
 # OS / editor cruft
 .DS_Store

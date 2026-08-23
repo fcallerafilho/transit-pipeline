@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>transit-pipeline — live positions (skeleton)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Leaflet from CDN for the local skeleton; vendored/CF-Pages hosted later (DESIGN §4.9). -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    #info {
+      position: absolute; z-index: 1000; top: 10px; left: 10px;
+      background: #fff; padding: 6px 10px; border-radius: 6px;
+      font: 13px system-ui, sans-serif; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="info">loading…</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // The Read API, reached via `kubectl port-forward svc/readapi 8080:8080`
+    // (or `make port-forward`). Override with localStorage.setItem('api', '...').
+    const API = (localStorage.getItem("api") || "http://localhost:8080") + "/positions";
+
+    const map = L.map("map").setView([-23.55, -46.63], 12); // São Paulo
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    async function load() {
+      const info = document.getElementById("info");
+      try {
+        const res = await fetch(API);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const positions = await res.json();
+        positions.forEach((p) => {
+          L.circleMarker([p.lat, p.lon], {
+            radius: 7, color: "#0f7d72", fillColor: "#12857a", fillOpacity: 0.9,
+          })
+            .addTo(map)
+            .bindPopup(`vehicle ${p.vehicle_id}<br>line ${p.line_id}<br>${p.ts}`);
+        });
+        info.textContent = `${positions.length} vehicle(s)`;
+        if (positions.length) map.setView([positions[0].lat, positions[0].lon], 14);
+      } catch (e) {
+        info.textContent = "error: " + e.message + " (is the Read API port-forwarded?)";
+      }
+    }
+    load();
+  </script>
+</body>
+</html>
