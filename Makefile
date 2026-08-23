@@ -1,4 +1,4 @@
-# transit-pipeline — build & deploy helpers (steps 1b–1d).
+# transit-pipeline — build & deploy helpers.
 # On Windows run these from git-bash, or run the underlying commands directly.
 
 CLUSTER    ?= transit
@@ -47,17 +47,20 @@ deploy: import secrets
 	kubectl create configmap db-init -n $(NS) --from-file=init.sql=db/init.sql --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f k8s/timescaledb.yaml
 	kubectl apply -f k8s/readapi.yaml
-	kubectl delete job ingester -n $(NS) --ignore-not-found
-	kubectl apply -f k8s/ingester-job.yaml
+	kubectl delete job ingester -n $(NS) --ignore-not-found   # remove the old 1a/1b one-shot Job
+	kubectl apply -f k8s/ingester.yaml
 
-# Wait for the ingester Job and show the row it wrote.
+# Wait for rollouts and show how many rows have accumulated.
 verify:
-	kubectl -n $(NS) wait --for=condition=complete job/ingester --timeout=120s
-	kubectl -n $(NS) exec deploy/timescaledb -- psql -U transit -d transit -c "SELECT * FROM positions;"
+	kubectl -n $(NS) rollout status deploy/ingester --timeout=120s
+	kubectl -n $(NS) rollout status deploy/readapi --timeout=120s
+	kubectl -n $(NS) exec deploy/timescaledb -- psql -U transit -d transit \
+	  -c "SELECT line_id, count(*) FROM positions GROUP BY line_id ORDER BY line_id;" \
+	  -c "SELECT count(*) AS total_rows, count(DISTINCT vehicle_id) AS vehicles FROM positions;"
 
 # Tail the ingester logs.
 logs:
-	kubectl -n $(NS) logs -l app=ingester --all-containers --tail=50
+	kubectl -n $(NS) logs -l app=ingester --tail=50
 
 # Forward the Read API to localhost:8080 (for curl or the map). Ctrl-C to stop.
 port-forward:

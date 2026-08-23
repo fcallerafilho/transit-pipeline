@@ -2,55 +2,101 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>transit-pipeline — live positions (skeleton)</title>
+  <title>São Paulo bus positions — live (beta)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Leaflet from CDN for the local skeleton; vendored/CF-Pages hosted later (DESIGN §4.9). -->
+  <!-- Leaflet from CDN for the beta; vendored/CF-Pages hosted later (DESIGN §4.9). -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-    #info {
-      position: absolute; z-index: 1000; top: 10px; left: 10px;
-      background: #fff; padding: 6px 10px; border-radius: 6px;
-      font: 13px system-ui, sans-serif; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    :root { --ink: #16202c; --muted: #5c6b80; --panel: rgba(255,255,255,.94); }
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    #map { position: absolute; inset: 0; }
+
+    #banner {
+      position: absolute; z-index: 1000; top: 0; left: 0; right: 0;
+      background: #b5771b; color: #fff; font-size: 13px; font-weight: 600;
+      padding: 7px 14px; text-align: center; letter-spacing: .01em;
     }
+    #banner span { font-weight: 400; opacity: .92; }
+
+    .panel {
+      position: absolute; z-index: 1000; background: var(--panel); color: var(--ink);
+      border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.2), 0 6px 20px rgba(0,0,0,.12);
+      padding: 12px 14px; backdrop-filter: blur(4px);
+    }
+    #title { top: 48px; left: 12px; max-width: 240px; }
+    #title h1 { margin: 0 0 3px; font-size: 15px; }
+    #title p { margin: 0; font-size: 12px; color: var(--muted); }
+    #title .stat { margin-top: 8px; font-size: 13px; }
+    #title .stat b { font-size: 20px; }
+
+    #legend { bottom: 22px; left: 12px; font-size: 12.5px; }
+    #legend .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    #legend .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+    #legend .muted { color: var(--muted); font-size: 11px; margin-top: 6px; }
   </style>
 </head>
 <body>
+  <div id="banner">🚧 Beta — live bus positions are flowing; the reliability metrics &amp; SLO dashboard are still being collected. <span>Data: SPTrans Olho Vivo.</span></div>
   <div id="map"></div>
-  <div id="info">loading…</div>
+
+  <div class="panel" id="title">
+    <h1>São Paulo buses — live</h1>
+    <p>Five high-traffic lines, refreshing automatically.</p>
+    <div class="stat"><b id="count">—</b> vehicles · <span id="updated">loading…</span></div>
+  </div>
+
+  <div class="panel" id="legend"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // The Read API, reached via `kubectl port-forward svc/readapi 8080:8080`
-    // (or `make port-forward`). Override with localStorage.setItem('api', '...').
     const API = (localStorage.getItem("api") || "http://localhost:8080") + "/positions";
 
-    const map = L.map("map").setView([-23.55, -46.63], 12); // São Paulo
+    const map = L.map("map", { zoomControl: true }).setView([-23.55, -46.63], 12); // São Paulo
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "© OpenStreetMap contributors",
+      maxZoom: 19, attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
+    // Stable-ish color per line, assigned on first sighting.
+    const palette = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990"];
+    const lineColor = {};
+    let nextColor = 0;
+    const colorFor = (id) => (lineColor[id] ??= palette[nextColor++ % palette.length]);
+
+    const markers = L.layerGroup().addTo(map);
+
+    function renderLegend() {
+      const ids = Object.keys(lineColor).sort((a, b) => a - b);
+      document.getElementById("legend").innerHTML =
+        "<div class='row'><b>lines</b></div>" +
+        ids.map((id) => `<div class="row"><span class="dot" style="background:${lineColor[id]}"></span>line ${id}</div>`).join("") +
+        "<div class='muted'>updates every 30s</div>";
+    }
+
     async function load() {
-      const info = document.getElementById("info");
       try {
-        const res = await fetch(API);
+        const res = await fetch(API, { cache: "no-store" });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const positions = await res.json();
+
+        markers.clearLayers();
         positions.forEach((p) => {
           L.circleMarker([p.lat, p.lon], {
-            radius: 7, color: "#0f7d72", fillColor: "#12857a", fillOpacity: 0.9,
+            radius: 6, weight: 1.5, color: "#fff", fillColor: colorFor(p.line_id), fillOpacity: 0.95,
           })
-            .addTo(map)
-            .bindPopup(`vehicle ${p.vehicle_id}<br>line ${p.line_id}<br>${p.ts}`);
+            .bindPopup(`vehicle <b>${p.vehicle_id}</b><br>line ${p.line_id}<br><small>${new Date(p.ts).toLocaleTimeString()}</small>`)
+            .addTo(markers);
         });
-        info.textContent = `${positions.length} vehicle(s)`;
-        if (positions.length) map.setView([positions[0].lat, positions[0].lon], 14);
+
+        document.getElementById("count").textContent = positions.length;
+        document.getElementById("updated").textContent = "updated " + new Date().toLocaleTimeString();
+        renderLegend();
       } catch (e) {
-        info.textContent = "error: " + e.message + " (is the Read API port-forwarded?)";
+        document.getElementById("updated").textContent = "error: " + e.message + " (is the Read API reachable?)";
       }
     }
+
     load();
+    setInterval(load, 30000); // auto-refresh
   </script>
 </body>
 </html>

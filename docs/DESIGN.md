@@ -340,6 +340,12 @@ Do not linger in 1a. Once a row is written locally, move to k3s immediately — 
 
 Steps 0–4 give the CV line and the core story. Step 6 must happen early enough for runtime to accumulate. Step 7 is what turns "I deployed something" into "I operated something" — protect it over map polish.
 
+### 9.6 Re-prioritisation — early public beta (2026-08-23)
+
+**Decision:** pull step 6 (public deploy) forward, ahead of steps 3–5, to put a live link on the portfolio and — more importantly — start the runtime clock (§9.3) as early as possible. The map ships in **beta** with a visible "collecting metrics, SLO dashboard coming" banner while steps 3–4 are still being built. Step 2 is done first so the map shows a genuinely live fleet (the five lines in §11), not frozen dots.
+
+A **bounded** frontend investment is now in scope for the beta: auto-refresh, per-line marker colour, a small legend, and the banner. This is a deliberate, limited exception to §1/§2 — the core principle stands: the SLO, alerting, runbook and postmortem remain the value, and **heavy polish plus the historical-info card stay deferred** until those artifacts exist and enough runtime has accrued for history to be meaningful. This ordering was chosen with eyes open, not by drift.
+
 ---
 
 ## 10. v1 (after v0 has accumulated runtime)
@@ -353,7 +359,7 @@ Steps 0–4 give the CV line and the core story. Step 6 must happen early enough
 
 ## 11. Open questions
 
-- Which three corridors to subset. Pick for volume and for a mix of high-frequency and low-frequency lines. Decide after step 0.
+- Which three corridors to subset. Pick for volume and for a mix of high-frequency and low-frequency lines. Decide after step 0. **Interim (2026-08-23):** for the early public beta, tracking five consistently high-volume *individual* lines rather than full corridors — cl=402, 33361, 32975, 871, 1095 (busiest across both a midday and a midnight survey). Full three-corridor subsetting is revisited when the SLO work is underway.
 - Which host to land on. Decide at step 6.
 - Whether `POSTMORTEM-001.md` documents a real unplanned incident or an induced one. Real is better; step 7 guarantees at least an induced one exists.
 
