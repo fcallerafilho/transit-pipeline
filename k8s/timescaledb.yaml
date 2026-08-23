@@ -1,0 +1,77 @@
+# TimescaleDB — a single-replica Deployment backed by a local-path PVC, seeded once
+# by the db-init ConfigMap (generated from db/init.sql at deploy time). Same image as
+# the 1a docker-compose; these manifests are Layer B (DESIGN §6), the portable unit
+# that later deploys unchanged to a cloud k3s host.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: timescale-data
+  namespace: transit
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path        # k3s built-in provisioner (DESIGN §6.3) — no cloud CSI
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timescaledb
+  namespace: transit
+  labels:
+    app: timescaledb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                    # one RWO volume — never let two pods mount it at once
+  selector:
+    matchLabels:
+      app: timescaledb
+  template:
+    metadata:
+      labels:
+        app: timescaledb
+    spec:
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb:2.29.2-pg17
+          envFrom:
+            - secretRef:
+                name: db-credentials   # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata   # subdir keeps the volume root clean
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"           # DESIGN §6.2 budget: Postgres/Timescale ~1 GB
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: timescale-data
+        - name: init
+          configMap:
+            name: db-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb
+  namespace: transit
+spec:
+  selector:
+    app: timescaledb
+  ports:
+    - port: 5432
+      targetPort: 5432
