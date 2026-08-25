@@ -1,0 +1,15 @@
+# These files are executed on Linux no matter which platform they were checked
+# out on. Git's autocrlf would rewrite them to CRLF on a Windows checkout, and a
+# trailing \r turns a shebang into the interpreter path "/usr/bin/env\r" — which
+# fails as "bad interpreter: No such file or directory", an error that names the
+# wrong problem. A \r in a Makefile recipe breaks it the same silent way.
+* text=auto
+
+*.sh        text eol=lf
+Makefile    text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.tf        text eol=lf
+*.hcl       text eol=lf
+*.sql       text eol=lf
+Dockerfile  text eol=lf
