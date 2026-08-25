@@ -1,0 +1,100 @@
+# Cloudflare Tunnel — the only way traffic reaches this cluster (DESIGN §6.4).
+#
+# cloudflared makes an OUTBOUND connection to Cloudflare and receives requests over
+# it, so the host needs no inbound port, no public web listener, and no cloud load
+# balancer. That is what keeps the ingress story identical across a Hetzner VM, an
+# Oracle VM, and a home machine behind CGNAT — and it is the line item that usually
+# costs money on a managed platform.
+#
+# The tunnel is LOCALLY MANAGED: its routing lives in the ConfigMap below, in this
+# repo, under review. The alternative (configuring ingress in the Cloudflare
+# dashboard) works but moves a load-bearing piece of the system somewhere that is
+# not version-controlled and not visible in a git history.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared
+  namespace: transit
+data:
+  config.yaml: |
+    # Tunnel UUID, printed by `cloudflared tunnel create transit`. Not a secret —
+    # the secret is the credentials file, which is mounted from a k8s Secret below.
+    tunnel: 5a81f5c2-dd03-441c-887c-12c96e77e8ae
+    credentials-file: /etc/cloudflared/creds/credentials.json
+
+    # cloudflared's own metrics. Exposed now because step 3 will want to scrape
+    # them: if the tunnel is the ingress path, its health is part of the SLO story.
+    metrics: 0.0.0.0:2000
+
+    # No-happy-eyeballs / connection tuning is left at defaults deliberately —
+    # defaults are well chosen here and there is no measurement yet to justify
+    # changing them.
+    ingress:
+      - hostname: api.callera.com.br
+        service: http://readapi:8080
+      # Catch-all. Required by cloudflared: a config whose last rule has a hostname
+      # is rejected at startup. Anything not matched above is not ours to serve.
+      - service: http_status:404
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: transit
+  labels:
+    app: cloudflared
+spec:
+  # One replica, on one node. Cloudflare recommends two for a no-downtime tunnel,
+  # and this is knowingly not that: a single-node cluster (DESIGN §6.3) has no
+  # second node to schedule the second replica on, so a second replica would buy
+  # nothing but memory pressure against the §6.2 budget. The honest statement is
+  # that ingress availability is bounded by node availability, which is already
+  # true of the database and the ingester.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.1
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config/config.yaml
+            - --no-autoupdate     # k8s rolls new versions by changing the tag, not by self-patching a running pod
+            - run
+          livenessProbe:
+            httpGet:
+              path: /ready        # cloudflared reports tunnel connection state here, not just process liveness
+              port: 2000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          ports:
+            - name: metrics
+              containerPort: 2000
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared/creds
+              readOnly: true
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"     # DESIGN §6.2: this row was added to the budget when the tunnel was deployed
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared
+        - name: creds
+          secret:
+            secretName: cloudflared-credentials

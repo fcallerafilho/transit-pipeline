@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,6 +38,10 @@ func run() error {
 	}
 	addr := ":" + envOr("PORT", "8080")
 
+	// The map is served from a different origin (Cloudflare Pages) than this API
+	// (Cloudflare Tunnel), so the browser demands an explicit CORS header.
+	allowCORS := corsAllower(envOr("CORS_ALLOW_ORIGIN", "*"))
+
 	// A pool, not a single connection like the ingester, because a server handles
 	// many requests concurrently. pgxpool is lazy, so this does not fail if the DB
 	// is not up yet — the first query connects.
@@ -47,7 +52,7 @@ func run() error {
 	defer pool.Close()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/positions", positionsHandler(pool))
+	mux.HandleFunc("/positions", positionsHandler(pool, allowCORS))
 	mux.HandleFunc("/healthz", healthHandler(pool))
 
 	log.Printf("readapi listening on %s", addr)
@@ -61,8 +66,44 @@ func envOr(key, def string) string {
 	return def
 }
 
+// corsFunc sets the CORS response header, if the request is entitled to one.
+type corsFunc func(http.ResponseWriter, *http.Request)
+
+// corsAllower builds that check from a comma-separated origin allowlist.
+//
+// A single value cannot be hardcoded here: the map is served from Cloudflare
+// Pages in production but from localhost during development, and Layer B must
+// stay identical in both (DESIGN §6). So the deployed value names both origins
+// and this echoes back whichever one actually asked.
+//
+// "*" is still accepted, and is the default so that `make port-forward` and a
+// bare `curl` keep working, but the deployed Read API does not use it — a public
+// endpoint answering "*" is readable by script on any page on the internet.
+func corsAllower(spec string) corsFunc {
+	if strings.TrimSpace(spec) == "*" {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+	}
+	allowed := make(map[string]bool)
+	for _, o := range strings.Split(spec, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			allowed[o] = true
+		}
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); allowed[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			// The response now differs by request origin, so any cache in front
+			// of this (Cloudflare is) must key on it rather than serving one
+			// origin the header minted for another.
+			w.Header().Add("Vary", "Origin")
+		}
+	}
+}
+
 // positionsHandler returns the latest position per vehicle as a JSON array.
-func positionsHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func positionsHandler(pool *pgxpool.Pool, allowCORS corsFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
@@ -98,7 +139,7 @@ func positionsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*") // skeleton: let the static map page fetch this
+		allowCORS(w, r)
 		if err := json.NewEncoder(w).Encode(out); err != nil {
 			log.Printf("encode: %v", err)
 		}

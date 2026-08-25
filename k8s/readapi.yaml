@@ -17,11 +17,28 @@ spec:
       labels:
         app: readapi
     spec:
+      # The images live in a private GHCR repo, so the node needs a pull
+      # credential. Created out-of-band by `make secrets` (DESIGN §4.8) — it is
+      # never in the repo and never baked into an image.
+      imagePullSecrets:
+        - name: ghcr
       containers:
         - name: readapi
-          image: transit-readapi:dev
-          imagePullPolicy: IfNotPresent   # use the image loaded via `k3d image import`, never pull
+          image: ghcr.io/fcallerafilho/transit-readapi:v0.1.0-beta
+          # The tag is an immutable release tag, so "if not present" can never
+          # serve a stale build: a new build gets a new tag. This is also what
+          # lets the same manifest work on k3d, where the image is side-loaded
+          # with `k3d image import` and no pull happens at all.
+          imagePullPolicy: IfNotPresent
           env:
+            - name: CORS_ALLOW_ORIGIN
+              # Every origin the map is ever served from: the custom domain, the
+              # canonical Pages URL it is aliased from (kept as a working fallback
+              # if the custom domain is ever misconfigured), and `make map` locally.
+              # Naming them explicitly keeps this manifest identical everywhere
+              # (DESIGN §6) without falling back to "*". Per-deployment preview
+              # URLs are deliberately NOT listed — they are not public entry points.
+              value: "https://map.callera.com.br,https://transit-map.pages.dev,http://localhost:8000"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

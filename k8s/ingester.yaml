@@ -21,6 +21,11 @@ spec:
       labels:
         app: ingester
     spec:
+      # The images live in a private GHCR repo, so the node needs a pull
+      # credential. Created out-of-band by `make secrets` (DESIGN §4.8) — it is
+      # never in the repo and never baked into an image.
+      imagePullSecrets:
+        - name: ghcr
       initContainers:
         - name: wait-for-db
           image: timescale/timescaledb:2.29.2-pg17
@@ -30,8 +35,8 @@ spec:
             - "until pg_isready -h timescaledb -p 5432 -U transit; do echo 'waiting for db'; sleep 2; done"
       containers:
         - name: ingester
-          image: transit-ingester:dev
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/fcallerafilho/transit-ingester:v0.1.0-beta
+          imagePullPolicy: IfNotPresent   # immutable release tag — see readapi.yaml
           env:
             - name: SPTRANS_TOKEN
               valueFrom:

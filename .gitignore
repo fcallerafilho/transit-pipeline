@@ -15,3 +15,24 @@ spike_survey_log.csv
 # OS / editor cruft
 .DS_Store
 Thumbs.db
+
+# Terraform (Layer A) — state can contain secrets; tfvars holds the SSH key.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Cloudflare Tunnel credentials (DESIGN §4.8) — the tunnel's private key.
+cloudflared/*.json
+!cloudflared/config.example.yml
+
+# Make scratch dir (one-key env files used to build secrets)
+.make-tmp/
+
+# Local learning notes and diagrams - not part of the deliverable.
+learn/
+
+# wrangler local state (Cloudflare Pages tooling)
+.wrangler/

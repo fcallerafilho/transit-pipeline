@@ -49,7 +49,10 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const API = (localStorage.getItem("api") || "http://localhost:8080") + "/positions";
+    // The deployed Read API, reached through the Cloudflare Tunnel. The
+    // localStorage override stays so the same published page can be pointed at a
+    // local cluster while debugging: localStorage.setItem("api","http://localhost:8080")
+    const API = (localStorage.getItem("api") || "https://api.callera.com.br") + "/positions";
 
     const map = L.map("map", { zoomControl: true }).setView([-23.55, -46.63], 12); // São Paulo
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {

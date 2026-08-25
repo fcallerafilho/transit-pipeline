@@ -142,11 +142,41 @@ The SPTrans token lives in a Kubernetes Secret referenced by environment variabl
 
 **State the limitation openly:** a base64-encoded Secret is not encrypted at rest by default. Knowing the weakness of the mechanism used is better than assuming it is secure.
 
+**As built (step 6).** Three practices follow from "never in the repo":
+
+- **Secrets are created out-of-band and never applied from a file.** `scripts/remote-secrets.sh`
+  renders each Secret locally with `kubectl --dry-run=client -o yaml` and pipes it over SSH into
+  `kubectl apply -f -`. No secret value is ever a command-line argument of a process on the box,
+  where it would sit in `ps` output for anything else running there to read. Values come from the
+  gitignored `.env`, and only the one key being used — the token secret is built from a grepped
+  single-line env file, not from the whole of `.env`.
+- **The production database password is alphanumeric by construction.** It is interpolated into a
+  `postgres://` DSN, where a `/`, `@` or `:` corrupts the connection string quietly rather than
+  failing loudly. Generating from a restricted alphabet is cheaper and safer than percent-encoding
+  correctly at every use site.
+- **Deploy access uses a dedicated passphrase-less key**, not the operator's personal key.
+  Automation cannot answer a passphrase prompt, and a key scoped to one job can be revoked from the
+  box without disturbing anything else. The personal key keeps its passphrase and stays the human
+  login. This is a deliberate trade — one unencrypted private key on disk, in exchange for not
+  weakening a key used elsewhere.
+
+The registry pull credential is a Secret too: the images are in a private GHCR repo, so the kubelet
+authenticates with a `dockerconfigjson` Secret rather than the images being made public to avoid it.
+
 ### 4.9 Read API and map
 
 - Serve current positions from a materialized "latest position per vehicle" view. Do **not** run `SELECT DISTINCT ON` over the full history table per request — the planner will not save you at tens of millions of rows.
 - Map: Leaflet, static, hosted on Cloudflare Pages alongside the existing portfolio.
 - Keep it deliberately unimpressive.
+
+**CORS is an allowlist, not `*` (step 6).** The page and the API are on different origins by
+construction — Pages serves the map, the tunnel serves the API — so the browser demands an explicit
+`Access-Control-Allow-Origin`. The skeleton answered `*`, which on a *public* endpoint means script
+on any page on the internet can read it. `CORS_ALLOW_ORIGIN` is now a comma-separated allowlist; the
+API echoes back whichever listed origin actually asked and adds `Vary: Origin`, so the CDN in front
+cannot serve one origin a header minted for another. A list rather than a single value is precisely
+what lets the *same* manifest serve production and `make map` on localhost — §6's requirement that
+Layer B not fork per environment. Per-deployment Pages preview URLs are deliberately not listed.
 
 ---
 
@@ -219,15 +249,39 @@ Four rules that follow, and must be honoured from the first commit:
 | Grafana | 256 MB |
 | Ingester | 128 MB |
 | Read API | 128 MB |
+| cloudflared (tunnel) | 128 MB |
 | k3s + OS headroom | ~1 GB |
 
 Set explicit `requests` and `limits` on every pod. This is correct practice independently and is a common interview question.
+
+The cloudflared row was added at step 6, when the tunnel stopped being a diagram
+box and became a pod. That brings the table to ~3.6 GB against 4 GB. The remaining
+margin is thin on purpose: the budget exists to force the choice between components,
+not to leave comfortable room for one more.
 
 **Direct implication: do not install `kube-prometheus-stack`.** It pulls in node-exporter, kube-state-metrics, and a large default rule set, and will not sit comfortably in 4 GB. Deploy Prometheus, Alertmanager, and Grafana as three plain Deployments with hand-written config. Slower, but the scrape config is then actually understood — which matters more here than convenience.
 
 **6.3 Local storage only.** Use the k3s built-in local-path provisioner. No cloud CSI drivers, no managed database. **State the trade-off honestly:** data lives on a single disk with no replication, so a nightly `pg_dump` to a second location is the durability story, not the storage layer.
 
 **6.4 Cloudflare Tunnel for ingress.** This is what makes the owned-hardware option viable at all — residential connections are typically behind CGNAT with no inbound public IP. The tunnel sidesteps that and provides TLS. It also means no cloud load balancer on any host, which is usually the line item that quietly costs money.
+
+**As built (step 6).** The tunnel is *locally managed*: its routing lives in `k8s/cloudflared.yaml`
+in this repo, not in the Cloudflare dashboard. Dashboard-managed tunnels behave identically, but they
+move a load-bearing piece of the system somewhere with no version history, no diff and no review.
+cloudflared runs as an ordinary in-cluster Deployment reading that ConfigMap, with the tunnel's
+credentials mounted from a Secret.
+
+**The security consequence is the part worth stating.** Because ingress is an *outbound* connection,
+the host firewall opens port 22 and nothing else. There is no inbound 80/443 rule to write, and
+— verified from off-host once k3s was up — the Kubernetes API on 6443 and the kubelet on 10250 are
+unreachable from the internet. Remote `kubectl` therefore runs over SSH rather than against an
+exposed API server. A conventional load-balancer ingress would have meant opening ports and then
+defending them; here there is nothing listening to defend.
+
+**One replica, stated honestly.** Cloudflare recommends two cloudflared replicas so a tunnel survives
+a pod restart. A single-node cluster (§6.3) has nowhere to place the second, so ingress availability
+is bounded by node availability — which is already true of the database and the ingester. A second
+replica would buy nothing here except memory pressure against the §6.2 budget.
 
 ---
 
@@ -273,7 +327,31 @@ poll loop (per feed) ─┘         (backpressure boundary)
 - *Capacity.* "Out of host capacity" for A1 shapes is common and regional. Timebox attempts to one evening; if it fails, move to Hetzner. Four euros is worth not losing three days to a retry loop.
 - *Idle reclamation.* Oracle reclaims Always Free compute deemed idle over a 7-day window when CPU p95, network, **and** (on A1) memory are all under 20%. All three must be true. Memory is the protection: 20% of 12 GB is 2.4 GB, and k3s + Prometheus + Timescale will exceed that. Worth monitoring rather than assuming.
 
-**Host selection is deferred.** Layer B is built and proven locally first (see section 9). The host is chosen in week two or three, at which point Layer A is written for whichever one is picked.
+**Decision (2026-08-24): Hetzner CX23 in `hel1`.** Oracle A1 was attempted first and
+had no capacity for the required shape — the *Capacity* risk above, materialising
+exactly as written. The timebox is what mattered: the fallback was taken the same
+evening instead of turning into a multi-day retry loop. Roughly €4/month against $0
+is a fair price for three days not spent refreshing a provisioning page.
+
+Two consequences worth recording, because both contradict an assumption made earlier
+in this document:
+
+- **The host is amd64, not arm64.** CX is Intel; only the CAX line is Ampere. So the
+  multi-arch build in §6.1 is not load-bearing *today* — the laptop and the server
+  agree on architecture for the first time. It is kept anyway, because what it buys
+  is the ability to move to Oracle or to the spare machine without a rebuild, and
+  that optionality is the entire point of §6. Dropping it now would be trading the
+  design's main property for a marginally faster build.
+- **Every Hetzner region is far from São Paulo.** There is no South American region,
+  so each poll crosses an ocean: expect a fixed ~100–200 ms floor in
+  `upstream_request_duration` (§5.1). This is not a threat to the 120 s freshness SLO
+  (§5.2) — it is under 0.2% of the budget — but it does change what that metric
+  *means*. The panel will be measuring distance, not upstream health, so no alert may
+  be hung on its absolute value; only on a change in it. `ash` (Ashburn) would roughly
+  halve the floor if that ever stops being acceptable.
+
+Layer B was built and proven locally before any of this, which is why the move cost
+one evening: `kubectl apply` ran against the box with the manifests unchanged.
 
 ---
 
@@ -334,6 +412,29 @@ Do not linger in 1a. Once a row is written locally, move to k3s immediately — 
 
 **Step 6 — Move to a host.** Pick Oracle or Hetzner or the spare machine. Write Layer A. Deploy Layer B unchanged — if it does not deploy unchanged, that is a bug in Layer B, not a reason to fork the manifests. Set up the Cloudflare Tunnel. **The clock on artifact 5 starts here.**
 
+**Outcome (2026-08-24) — the beta is live.** `https://map.callera.com.br` (Pages) →
+`https://api.callera.com.br` (Tunnel) → k3s on Hetzner → TimescaleDB. **The artifact-5 clock starts
+at 23:57 UTC on 2026-08-24.** Do not rebuild the box; a replacement resets that clock to zero.
+
+- **Layer B deployed unchanged.** The manifests that run on k3d were copied to the box and applied
+  with no edits and no overlay. That was the entire bet of §6, and it is the one claim here that was
+  actually tested rather than asserted.
+- **Terraform reconciled to a hand-made box by import, not by rebuild.** The server already existed,
+  created in the console. `prevent_destroy` then earned its place immediately: the first plan wanted
+  to **destroy and recreate the running server**. The cause is worth remembering — Hetzner stores an
+  SSH public key *without* its trailing comment, so a comment-bearing local copy reads as a different
+  key, which forces replacement of the key and then of the server referencing it. Two fixes are kept
+  in the module: match the stored key byte for byte, and `ignore_changes = [ssh_keys]`, because
+  Hetzner consumes that attribute at creation and never reports it back, so an imported server
+  otherwise shows an unresolvable diff forever.
+- **Measured footprint:** the four pods plus k3s use ~1.05 GB of 3.7 GB. The §6.2 budget's remaining
+  headroom for Prometheus and Grafana is therefore real rather than aspirational.
+- **An install script is not trusted until it has run twice.** The first bootstrap exited 141 *after*
+  a completely successful install: `k3s --version | head -1` under `set -o pipefail`, where the reader
+  closes the pipe and k3s dies of SIGPIPE. A script run once per host lifetime hides this whole class
+  of bug, which is exactly the class that surfaces during an incident at 2am. Bootstrap is now
+  idempotent and verified by re-running it.
+
 **Step 7 — Break it on purpose, then document.** Kill the pod mid-poll. Point the ingester at an invalid token. Blackhole the upstream with a NetworkPolicy. Fill the disk. Observe what fires and what stays silent; fix the alerts that stayed silent. Then write `RUNBOOK.md` and `POSTMORTEM-001.md`.
 
 ### 9.5 Priority under time pressure
@@ -360,7 +461,8 @@ A **bounded** frontend investment is now in scope for the beta: auto-refresh, pe
 ## 11. Open questions
 
 - Which three corridors to subset. Pick for volume and for a mix of high-frequency and low-frequency lines. Decide after step 0. **Interim (2026-08-23):** for the early public beta, tracking five consistently high-volume *individual* lines rather than full corridors — cl=402, 33361, 32975, 871, 1095 (busiest across both a midday and a midnight survey). Full three-corridor subsetting is revisited when the SLO work is underway.
-- Which host to land on. Decide at step 6.
+- ~~Which host to land on.~~ **Closed 2026-08-24:** Hetzner CX23, after Oracle A1
+  came back out of capacity. See §8.
 - Whether `POSTMORTEM-001.md` documents a real unplanned incident or an induced one. Real is better; step 7 guarantees at least an induced one exists.
 
 ---

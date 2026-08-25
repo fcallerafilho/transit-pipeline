@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+# The Hetzner API token is NOT set here — export it instead:
+#   export HCLOUD_TOKEN=...
+server_name    = "transit-pipeline"
+server_type    = "cx23"
+location       = "hel1"
+image          = "debian-13"
+ssh_public_key = "ssh-ed25519 AAAA... you@host"
